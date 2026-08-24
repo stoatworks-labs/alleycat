@@ -4,6 +4,9 @@
  * by the same code and cannot drift into different-looking cats.
  */
 import { deflateSync } from 'node:zlib'
+import { createHash } from 'node:crypto'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 let crcTable = null
 function crc32(buf) {
@@ -107,4 +110,54 @@ export function catCoverage(x, y, s) {
   a *= 1 - disc(x, y, u(12), u(18), u(2.1))
   a *= 1 - disc(x, y, u(20), u(18), u(2.1))
   return Math.max(0, Math.min(1, a))
+}
+
+/**
+ * Identity of an icon, taken from its raw RGBA pixels.
+ *
+ * Deliberately not a hash of the PNG file: zlib's deflate output differs between
+ * versions, so the same drawing encodes to a different number of bytes on
+ * different machines (281 locally, 283 on the CI runner). Hashing the pixels
+ * checks the artwork, which is the thing that must not drift, and ignores the
+ * compressor's mood.
+ */
+export function pixelHash(px) {
+  return createHash('sha256')
+    .update(Buffer.from(px.buffer, px.byteOffset, px.length))
+    .digest('hex')
+}
+
+const manifestPath = (root) => join(root, 'build', 'icons.sha256')
+
+function readManifest(root) {
+  const p = manifestPath(root)
+  if (!existsSync(p)) return {}
+  return Object.fromEntries(
+    readFileSync(p, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => line.split(/\s+/))
+  )
+}
+
+export function recordHash(root, key, hash) {
+  const m = readManifest(root)
+  m[key] = hash
+  const body =
+    Object.keys(m)
+      .sort()
+      .map((k) => `${k} ${m[k]}`)
+      .join('\n') + '\n'
+  writeFileSync(manifestPath(root), body)
+}
+
+/** Exits non-zero if the drawing no longer matches what was committed. */
+export function checkHash(root, key, hash) {
+  const expected = readManifest(root)[key]
+  if (expected === hash) {
+    console.log(`${key}: ok (${hash.slice(0, 12)})`)
+    return
+  }
+  console.error(`${key}: MISMATCH\n  committed: ${expected ?? '(absent)'}\n  generated: ${hash}`)
+  process.exit(1)
 }

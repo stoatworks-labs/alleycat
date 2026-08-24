@@ -8,7 +8,7 @@
 import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { encodePng, roundRect, catCoverage } from './png.mjs'
+import { encodePng, roundRect, catCoverage, pixelHash, recordHash, checkHash } from './png.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const S = 1024
@@ -43,5 +43,11 @@ for (let y = 0; y < S; y++) {
   }
 }
 
-writeFileSync(join(root, 'build', 'icon.png'), encodePng(px, S))
-console.log(`wrote build/icon.png (${S}x${S})`)
+const hash = pixelHash(px)
+if (process.argv.includes('--check')) {
+  checkHash(root, 'app', hash)
+} else {
+  writeFileSync(join(root, 'build', 'icon.png'), encodePng(px, S))
+  recordHash(root, 'app', hash)
+  console.log(`wrote build/icon.png (${S}x${S})`)
+}

@@ -33,12 +33,15 @@ jobs:
       - name: Test
         run: npm run test
 
-      - name: Icons are reproducible from their generators
+      - name: Icons match their generators
         # The tray icon is committed as base64 inside src/main/trayIcon.ts and the
-        # app icon as build/icon.png. Both are generated. If someone edits either
-        # by hand the app and the generator disagree silently, so regenerate and
-        # fail on any diff.
+        # app icon as build/icon.png; both are generated, and a hand-edit would
+        # make the app and its generator disagree silently.
+        #
+        # Compares the RGBA pixels via build/icons.sha256, NOT the PNG bytes:
+        # zlib's deflate output differs between versions, so the identical
+        # drawing encodes to 281 bytes locally and 283 on this runner, and a
+        # byte-level diff fails on every machine that is not the author's.
         run: |
-          node scripts/make-tray-icon.mjs
-          node scripts/make-app-icon.mjs
-          git diff --exit-code src/main/trayIcon.ts resources/trayTemplate.png build/icon.png
+          node scripts/make-tray-icon.mjs --check
+          node scripts/make-app-icon.mjs --check
