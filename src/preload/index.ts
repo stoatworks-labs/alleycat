@@ -10,6 +10,8 @@ export interface LogLine {
 
 /** The whole surface the renderer is allowed to touch. */
 const api = {
+  /** Needed by the renderer to clear the macOS traffic lights under titleBarStyle: hiddenInset. */
+  platform: process.platform as NodeJS.Platform,
   getConfig: (): Promise<Config> => ipcRenderer.invoke('config:get'),
   setConfig: (patch: Partial<Config>): Promise<Config> => ipcRenderer.invoke('config:set', patch),
   getStatus: (): Promise<Status | null> => ipcRenderer.invoke('status:get'),

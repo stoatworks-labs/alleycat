@@ -75,12 +75,18 @@ conversion. Two of them exist:
   **not in the shipped OpenAPI spec** — 7.27.1 returns it anyway.
 - `video.description`, whose second line is the codec. Documented, and the fallback.
 
-### Clip ids are not stable
+### Addressing a clip is unreliable in two different ways
 
-Arena reassigns clip ids while it finishes opening a composition. An id read during startup can be
-dead seconds later, and `/open` then returns 404. Alleycat re-reads the composition and matches
-clips **by path** before every swap, so a pending replacement survives a composition reload; a 404
-is treated as "stale, re-match next scan" rather than a failure.
+**Clip ids are not stable.** Loading a file into a clip gives it a new id, and Arena also
+reassigns ids while it finishes opening a composition. Alleycat therefore re-reads the composition
+and matches clips **by path** before every swap, rather than remembering an id.
+
+**`by-id` writes are refused for a while after Arena launches.** The composition reads fine and
+`GET .../by-id/{id}` returns 200, but `POST .../by-id/{id}/open` answers `404 the requested clip is
+not found` until something has loaded a clip by another route. `by-index` works during that window,
+so Alleycat falls back to it — but only after re-reading the clip at those indices and confirming
+it still holds the file being replaced. Indices address the _selected deck_, so an unchecked
+fallback could drop a file into the wrong slot of a live show.
 
 ## Configuration
 

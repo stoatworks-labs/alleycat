@@ -27,13 +27,17 @@ export class ClipLockedError extends ArenaError {
 }
 
 /**
- * Raised for a 404 on a clip that was listed moments ago.
+ * Raised for a 404 on a clip that was listed moments ago. Two distinct causes,
+ * both observed on Arena 7.27.1, and both meaning "try again" rather than "fail":
  *
- * Clip ids are **not** stable across a composition load. Arena reassigns them
- * while it finishes opening a composition, so an id read during startup can be
- * dead by the time it is used — observed on 7.27.1, where every id in the first
- * composition read after launch had changed a few seconds later. Treated as
- * "rescan and match by path again", not as a failure.
+ *  1. **Clip ids are not stable.** Loading a file into a clip gives it a new id,
+ *     and Arena also reassigns ids while it finishes opening a composition. An
+ *     id read a moment ago can simply be gone.
+ *  2. **`by-id` writes are refused for a while after Arena launches.** The
+ *     composition reads fine and `GET .../by-id/{id}` returns 200, but
+ *     `POST .../by-id/{id}/open` answers 404 until something has loaded a clip
+ *     by some other route. `by-index` works during that window, which is what
+ *     `openFileForClip` falls back to.
  */
 export class StaleClipError extends ArenaError {
   constructor(message: string) {
@@ -130,6 +134,20 @@ export function codecOf(
   return { text: codecLine, isDxv: describedAsDxv(description) }
 }
 
+/** The minimum a caller must know to address a clip both ways. */
+export interface ClipTarget {
+  clipId: number
+  layerIndex: number
+  clipIndex: number
+  /** The file the clip is expected to hold; guards the by-index fallback. */
+  path: string
+}
+
+/** Case-insensitive where the filesystem is, matching the engine's own comparison. */
+function samePathish(a: string, b: string): boolean {
+  return process.platform === 'linux' ? a === b : a.toLowerCase() === b.toLowerCase()
+}
+
 export class ArenaClient {
   private readonly base: string
   private readonly timeoutMs: number
@@ -176,15 +194,21 @@ export class ArenaClient {
     const comp = await this.composition()
     const out: ArenaClipRef[] = []
 
-    for (const layer of comp.layers ?? []) {
+    const layers = comp.layers ?? []
+    for (let li = 0; li < layers.length; li++) {
+      const layer = layers[li]
       const layerName = layer.name?.value ?? `Layer ${layer.id}`
-      for (const clip of layer.clips ?? []) {
+      const clips = layer.clips ?? []
+      for (let ci = 0; ci < clips.length; ci++) {
+        const clip = clips[ci]
         const path = clip.video?.fileinfo?.path
         if (!path) continue // empty slot, or a generator source rather than a file
         const description = clip.video?.description ?? ''
         const codec = codecOf(clip.video?.fileinfo?.format, description)
         out.push({
           clipId: clip.id,
+          layerIndex: li + 1,
+          clipIndex: ci + 1,
           layerName,
           clipName: clip.name?.value ?? `Clip ${clip.id}`,
           path,
@@ -196,6 +220,56 @@ export class ArenaClient {
       }
     }
     return out
+  }
+
+  /** The file a clip currently holds, or null. Used to confirm a by-index target. */
+  private async pathAtIndex(layerIndex: number, clipIndex: number): Promise<string | null> {
+    const res = await this.request(`/composition/layers/${layerIndex}/clips/${clipIndex}`)
+    if (!res.ok) return null
+    const clip = (await res.json()) as RawClip
+    return clip.video?.fileinfo?.path ?? null
+  }
+
+  /**
+   * Point a clip at a different file, falling back to by-index addressing.
+   *
+   * `by-id` `/open` returns 404 for a while after Arena launches — the
+   * composition reads fine and `GET .../by-id/{id}` returns 200, but the write
+   * is refused until something has loaded a clip. `by-index` works during that
+   * window.
+   *
+   * The fallback is dangerous on its own: indices address the **selected deck**,
+   * so if the deck changed since the composition was listed, the same indices
+   * point at a different clip and the file would land in the wrong slot — in a
+   * live show. It therefore re-reads the clip at those indices and only writes
+   * if it still holds the file being replaced.
+   */
+  async openFileForClip(ref: ClipTarget, filePath: string): Promise<void> {
+    try {
+      await this.openFileInClip(ref.clipId, filePath)
+      return
+    } catch (err) {
+      if (!(err instanceof StaleClipError)) throw err
+    }
+
+    const current = await this.pathAtIndex(ref.layerIndex, ref.clipIndex)
+    if (current === null || !samePathish(current, ref.path)) {
+      throw new StaleClipError(
+        `clip ${ref.clipId} not addressable by id, and layer ${ref.layerIndex}/clip ` +
+          `${ref.clipIndex} no longer holds ${ref.path}`
+      )
+    }
+
+    const url = pathToFileURL(filePath).href
+    const res = await this.request(
+      `/composition/layers/${ref.layerIndex}/clips/${ref.clipIndex}/open`,
+      { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: url }
+    )
+    if (res.status === 204 || res.ok) return
+    if (res.status === 412) {
+      throw new ClipLockedError((await res.text().catch(() => '')) || 'the clip cannot be changed')
+    }
+    throw new StaleClipError(`clip ${ref.clipId} could not be opened by id or by index`)
   }
 
   /**

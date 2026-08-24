@@ -169,7 +169,7 @@ function FoldersTab({
               </button>
             </li>
           ))}
-          {config.watchFolders.length === 0 && <li style={{ color: 'var(--dim)' }}>None yet</li>}
+          {config.watchFolders.length === 0 && <li className="empty-row">Nothing watched yet.</li>}
         </ul>
         <button className="btn primary" onClick={addFolder}>
           Add folder…

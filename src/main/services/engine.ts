@@ -320,7 +320,7 @@ export class Engine extends EventEmitter {
           continue
         }
         try {
-          await this.arena.openFileInClip(clip.clipId, outputPath)
+          await this.arena.openFileForClip(clip, outputPath)
           replaced.push(clip.clipId)
           log.info(`swapped ${clip.layerName} / ${clip.clipName} to ${basename(outputPath)}`)
         } catch (err) {

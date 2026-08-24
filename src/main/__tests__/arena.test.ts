@@ -87,6 +87,9 @@ describe('listFileClips', () => {
     const clips = await c.listFileClips()
     expect(clips).toHaveLength(2)
     expect(clips[0]).toMatchObject({ clipId: 100, isDxv: true, connected: false })
+    // 1-based, for the by-index fallback
+    expect(clips[0]).toMatchObject({ layerIndex: 1, clipIndex: 1 })
+    expect(clips[1]).toMatchObject({ layerIndex: 1, clipIndex: 2 })
     expect(clips[0].codec).toContain('DXV')
     expect(clips[1]).toMatchObject({ clipId: 101, isDxv: false, connected: true })
   })
@@ -159,5 +162,78 @@ describe('all five connected states from Arena 7.27.1', () => {
     ['Connected & previewing', true]
   ])('%s -> playing=%s', (value, expected) => {
     expect(isClipPlaying({ value })).toBe(expected)
+  })
+})
+
+describe('openFileForClip — by-index fallback', () => {
+  const ref = { clipId: 7, layerIndex: 2, clipIndex: 3, path: '/m/old.mp4' }
+  // vi.fn() infers a zero-arg signature, so the recorded calls need widening.
+  const calls = (f: { mock: { calls: unknown[] } }): Array<[string, RequestInit]> =>
+    f.mock.calls as Array<[string, RequestInit]>
+
+  it('uses by-id when it works, and never touches the index route', async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }))
+    const c = clientWith(fetchImpl as never)
+    await c.openFileForClip(ref, '/m/new.mov')
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(calls(fetchImpl)[0][0]).toContain('/clips/by-id/7/open')
+  })
+
+  it('falls back to by-index when by-id 404s, once the target is confirmed', async () => {
+    // by-id open 404s (the cold-Arena window), the index lookup still holds the
+    // file being replaced, so the index write is allowed.
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 7, video: { fileinfo: { path: '/m/old.mp4' } } }), {
+          status: 200
+        })
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    const c = clientWith(fetchImpl as never)
+    await c.openFileForClip(ref, '/m/new.mov')
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    expect(calls(fetchImpl)[2][0]).toContain('/layers/2/clips/3/open')
+    expect(calls(fetchImpl)[2][1].body).toBe('file:///m/new.mov')
+  })
+
+  it('REFUSES the by-index write when that slot now holds a different file', async () => {
+    // Indices address the selected deck. If the deck changed, the same indices
+    // are a different clip — writing there would drop a file into the wrong slot
+    // of a live show.
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ id: 99, video: { fileinfo: { path: '/m/SOMEONE-ELSE.mov' } } }),
+          {
+            status: 200
+          }
+        )
+      )
+    const c = clientWith(fetchImpl as never)
+    await expect(c.openFileForClip(ref, '/m/new.mov')).rejects.toBeInstanceOf(StaleClipError)
+    // Crucially: no third call. Nothing was written.
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('refuses when the index lookup finds an empty clip', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 99, video: null }), { status: 200 }))
+    const c = clientWith(fetchImpl as never)
+    await expect(c.openFileForClip(ref, '/m/new.mov')).rejects.toBeInstanceOf(StaleClipError)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('propagates a 412 from by-id without falling back', async () => {
+    const fetchImpl = vi.fn(async () => new Response('busy', { status: 412 }))
+    const c = clientWith(fetchImpl as never)
+    await expect(c.openFileForClip(ref, '/m/new.mov')).rejects.toBeInstanceOf(ClipLockedError)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 })

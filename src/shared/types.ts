@@ -53,6 +53,9 @@ export interface Config {
 
 export interface ArenaClipRef {
   clipId: number
+  /** 1-based position in the composition, for the by-index fallback. */
+  layerIndex: number
+  clipIndex: number
   layerName: string
   clipName: string
   /** Absolute path of the file the clip currently points at. */

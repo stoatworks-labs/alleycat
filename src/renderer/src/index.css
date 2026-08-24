@@ -38,6 +38,16 @@ header {
   gap: 12px;
 }
 
+/*
+ * macOS uses titleBarStyle: 'hiddenInset', which draws the close/minimise/zoom
+ * buttons INSIDE the content area — so without this the title sits underneath
+ * them. Scoped to darwin because Windows and Linux use a normal title bar and
+ * would just get a dented header.
+ */
+:root[data-platform='darwin'] header {
+  padding-left: 82px;
+}
+
 header h1 {
   margin: 0;
   font-size: 15px;
@@ -164,6 +174,21 @@ button.btn.primary {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   word-break: break-all;
+}
+
+/* The last row's rule would otherwise float above the button below it. */
+.folders li:last-child {
+  border-bottom: none;
+}
+
+/* The empty state is prose, not a path — a monospace row with a divider under
+   it reads as a broken list entry. */
+.folders li.empty-row {
+  border-bottom: none;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--dim);
+  padding-top: 0;
 }
 
 .folders {
