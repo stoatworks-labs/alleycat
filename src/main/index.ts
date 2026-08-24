@@ -16,10 +16,68 @@ let engine: Engine | null = null
 /** A tray app should not die when its only window is closed. */
 let quitting = false
 
+/**
+ * Bring the window to the front.
+ *
+ * `LSUIElement: true` makes Alleycat an accessory app, which is right for a
+ * menu-bar tool but means macOS **does not activate it** when it is launched or
+ * re-opened. `win.show()` alone therefore renders a window *behind* whatever the
+ * user is looking at — `document.visibilityState` stays `hidden` and nothing
+ * appears on screen. That is indistinguishable from the app being broken, and it
+ * is what v0.1.0-preview.1 through .3 did on every launch.
+ *
+ * `app.focus({ steal: true })` is the part that actually pulls the process
+ * forward; without it `win.focus()` is a no-op for an accessory app.
+ */
+function revealWindow(w: BrowserWindow): void {
+  if (w.isMinimized()) w.restore()
+  if (process.platform === 'darwin') {
+    // `app.focus({ steal: true })` alone does NOT raise the window while the
+    // process is an accessory — measured: document.visibilityState stayed
+    // 'hidden' and Chrome remained frontmost. The activation policy has to
+    // become 'regular' first, which is also the honest state of affairs: while
+    // a window is open the app is a normal app and belongs in the dock and in
+    // Cmd-Tab. It drops back to 'accessory' when the window closes.
+    app.setActivationPolicy('regular')
+    void app.dock?.show()
+  }
+  w.show()
+  w.focus()
+
+  if (process.platform === 'darwin') {
+    // The focus has to happen AFTER the activation policy change has been
+    // processed. Doing it in the same tick works on a cold launch but silently
+    // fails when the app is already running and merely re-opened — measured:
+    // the window was created but stayed hidden behind the previous app.
+    setTimeout(() => {
+      app.focus({ steal: true })
+      if (w.isDestroyed()) return
+      w.show()
+      w.focus()
+      // Re-opening an already-running accessory app is the case where macOS
+      // refuses the focus outright — measured: the window was created and stayed
+      // behind the frontmost app even after the policy change. A brief
+      // always-on-top raises it regardless of whether activation was granted,
+      // and is dropped again immediately so it does not sit over everything.
+      w.setAlwaysOnTop(true)
+      w.moveTop()
+      setTimeout(() => {
+        if (!w.isDestroyed()) w.setAlwaysOnTop(false)
+      }, 500)
+    }, 120)
+  }
+}
+
+/** Back to a menu-bar-only app once no window is open. */
+function retreatToTray(): void {
+  if (process.platform !== 'darwin') return
+  app.dock?.hide()
+  app.setActivationPolicy('accessory')
+}
+
 function createWindow(): void {
   if (win) {
-    win.show()
-    win.focus()
+    revealWindow(win)
     return
   }
 
@@ -52,9 +110,10 @@ function createWindow(): void {
     log.error(`renderer process gone: ${details.reason}`)
   })
 
-  win.on('ready-to-show', () => win?.show())
+  win.on('ready-to-show', () => win && revealWindow(win))
   win.on('closed', () => {
     win = null
+    if (!quitting) retreatToTray()
   })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -158,12 +217,23 @@ function wireIpc(): void {
   })
 }
 
+// A second launch of an accessory app is otherwise swallowed entirely: no new
+// process, no dock icon to bounce, and nothing on screen.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => createWindow())
+}
+
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.allansargeant.alleycat')
   app.on('browser-window-created', (_, w) => optimizer.watchWindowShortcuts(w))
 
-  // The tray is the app; a dock icon on macOS would be noise.
-  if (process.platform === 'darwin') app.dock?.hide()
+  // Menu-bar-only until a window is opened; revealWindow flips this back.
+  if (process.platform === 'darwin') {
+    app.dock?.hide()
+    app.setActivationPolicy('accessory')
+  }
 
   const config = loadConfig()
   engine = new Engine(config)

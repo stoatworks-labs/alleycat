@@ -110,10 +110,15 @@ ALLEYCAT_HW=1 npm test
 
 ## Known issues
 
-**v0.1.0-preview.1 renders a blank window and should not be used.** The preload script failed to
-load, so the renderer had no bridge to the main process and died on its first call. Fixed in
-`v0.1.0-preview.2`; the build now fails if the preload the main bundle references does not exist,
-and the window shows a named error instead of nothing if the bridge is ever missing again.
+**Every preview before `v0.1.0-preview.4` fails to show its window on macOS.** Alleycat is a
+menu-bar app (`LSUIElement`), and macOS does not activate an accessory app when it is launched — so
+the window was created and rendered correctly but stayed _behind_ whatever you were looking at, with
+`document.visibilityState` reporting `hidden`. Nothing appeared on screen, which is indistinguishable
+from the app being broken. Fixed in `preview.4`, which switches the activation policy to `regular`
+while a window is open and drops back to `accessory` when it closes.
+
+**`v0.1.0-preview.1` additionally renders a blank window.** The preload script failed to load, so
+the renderer had no bridge to the main process and died on its first call. Fixed in `preview.2`.
 
 ## Verified vs assumed
 

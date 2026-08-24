@@ -1,7 +1,7 @@
 {
   "name": "alleycat",
   "productName": "Alleycat",
-  "version": "0.1.0-preview.3",
+  "version": "0.1.0-preview.4",
   "description": "Tray tool that watches folders for non-DXV footage, transcodes it with Resolume Alley, and swaps the results into a running Arena or Avenue composition.",
   "private": true,
   "main": "./out/main/index.js",

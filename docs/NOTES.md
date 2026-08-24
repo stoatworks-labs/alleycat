@@ -34,7 +34,8 @@ swapped once disconnected. Watch-folder ingest works and does not re-ingest its 
 **Never used on a real show.** Nothing has run on **Windows or Linux**, or on **macOS x64**.
 The published macOS **arm64** dmg has been verified (`spctl` → `Notarized Developer ID`, stapler
 ok) and the app GUI-launched from it, where it converted a dropped file to real DXV — so the
-packaged path works at least on that one artefact. Arena's **412** path is coded but never actually fired. **Avenue
+packaged path works at least on that one artefact. **That test proved the main process worked and
+nothing about the window**, which was invisible the whole time; see the LSUIElement note below. Arena's **412** path is coded but never actually fired. **Avenue
 untested.** The macOS local-network permission is declared and asserted in CI but has still never
 been *observed working*: Arena was not running during the packaged-app test, so the one path that
 needs the permission was never exercised. A GUI-launched app talking to Arena would prove it.
@@ -126,3 +127,43 @@ asserting that case performs no write at all.
 
 Shipped in **v0.1.0-preview.3**. The fallback is covered by unit tests but has **not** been
 exercised against a real cold Arena.
+
+## ☠️ LSUIElement made the window invisible on every launch — 2026-08-24
+
+Reported as "the latest release renders no UI". It was not a rendering fault at all: reading the
+live DOM of the **shipped** `preview.3` over CDP showed a complete, correct page —
+`v0.1.0-preview.3`, 2258 characters of markup, bridge present — while
+`document.visibilityState` was `hidden` and `document.hasFocus()` was `false`, with Chrome
+frontmost. The window was being created behind everything and never coming forward.
+
+Cause: `LSUIElement: true`, added in preview.1's release plumbing so a menu-bar tool would not carry
+a dock icon. macOS **does not activate an accessory app** when it is launched, so `win.show()`
+renders into a window nobody can see. Affected preview.1, .2 and .3 — every build that had ever
+shipped. It is also why screenshotting this app kept failing earlier in the same session, and why a
+temporary `app.focus({ steal: true })` was needed to capture it; that was the bug showing itself and
+I read it as a screenshot problem.
+
+What actually works, measured rather than assumed — each of these was verified over CDP with another
+app frontmost:
+
+- `app.focus({ steal: true })` alone: **does not work**. Still `hidden`, Chrome still frontmost.
+- `app.setActivationPolicy('regular')` + `app.dock.show()` + focus **in the same tick**: works on a
+  cold launch, **fails on re-open** of an already-running instance.
+- The same, with the focus **deferred ~120ms** after the policy change, plus a brief
+  `setAlwaysOnTop(true)` dropped again after 500ms: works for **both** cold launch and re-open.
+
+The app drops back to `accessory` when the last window closes, so it is menu-bar-only while idle and
+a normal app while its window is open — which is also the honest description of what it is.
+
+`app.requestSingleInstanceLock()` + `second-instance` was added at the same time: without it a
+second launch of an accessory app is swallowed entirely — no new process, no dock icon to bounce,
+nothing on screen.
+
+**The lesson is about evidence.** "The process is alive", "it converted a file" and even "the DOM is
+correct" are all true of an app the user cannot see. The only check that would have caught this is
+whether the window is actually *visible and frontmost*, which is one CDP call:
+`document.visibilityState` and `document.hasFocus()`. Launching with
+`--remote-debugging-port=<n> --remote-allow-origins='*'` works on the shipped bundle and needs no
+patching — which matters, because macOS App Management refuses to let you modify a notarised app.
+
+Shipped in **v0.1.0-preview.4**.
