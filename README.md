@@ -135,13 +135,14 @@ and the window shows a named error instead of nothing if the bridge is ever miss
   but says nothing about whether it _looks_ right.
 - **Windows and Linux.** The Alley path default and `predictOutputPath` are written for them and
   unit-tested, but Alley's CLI has only ever been run on macOS here.
-- **The installers have never been installed.** They are built and published by CI, and the macOS
-  ones are checked in the build for `NSLocalNetworkUsageDescription` and `LSUIElement`, but nobody
-  has run one on a clean machine.
-- **The macOS local-network permission has never been observed working.** The key is present in
-  the built bundle, verified with `PlistBuddy`. Every functional test so far ran from a terminal,
-  which inherits the terminal's permission — so the permission path itself is untested by
-  construction. Double-clicking a packaged build is what would prove it.
+- **Only the macOS arm64 build has been run.** The published `v0.1.0-preview.2` arm64 `.dmg` was
+  downloaded, verified as `Notarized Developer ID` by `spctl` and stapled, mounted, and the app
+  launched the way a user launches it. It converted a file dropped into a watched folder to real
+  DXV. The **Windows, Linux and macOS x64** artefacts have never been run at all.
+- **The macOS local-network permission still has not been observed working.** The key is in the
+  shipped bundle and CI asserts it, but Arena was not running during the packaged-app test, so the
+  one code path that needs the permission was never exercised. A GUI-launched app talking to Arena
+  is what would prove it, and that has not happened.
 - **Arena's 412 "clip cannot be changed"** path. The code handles it, but Arena never actually
   returned one during testing — deferral was exercised through the `connected` check instead.
 - **Avenue.** Only Arena was tested. Layer _groups_ are Arena-only in the API, but Alleycat does

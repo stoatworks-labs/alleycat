@@ -31,11 +31,13 @@ swapped once disconnected. Watch-folder ingest works and does not re-ingest its 
 
 ## NOT verified
 
-**Never used on a real show.** Nothing has run on **Windows or Linux**. **No packaged build has
-been installed by anyone.** Arena's **412** path is coded but never actually fired. **Avenue
-untested.** The macOS local-network permission is declared and asserted in CI but has never been
-*observed working*, because every functional test so far ran from a terminal, which inherits the
-terminal's permission.
+**Never used on a real show.** Nothing has run on **Windows or Linux**, or on **macOS x64**.
+The published macOS **arm64** dmg has been verified (`spctl` → `Notarized Developer ID`, stapler
+ok) and the app GUI-launched from it, where it converted a dropped file to real DXV — so the
+packaged path works at least on that one artefact. Arena's **412** path is coded but never actually fired. **Avenue
+untested.** The macOS local-network permission is declared and asserted in CI but has still never
+been *observed working*: Arena was not running during the packaged-app test, so the one path that
+needs the permission was never exercised. A GUI-launched app talking to Arena would prove it.
 
 The window is now checked by dumping its rendered DOM (see below), which is real evidence that it
 renders — but nobody has looked at whether it looks *right*.
