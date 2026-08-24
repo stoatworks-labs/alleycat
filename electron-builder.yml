@@ -1,0 +1,46 @@
+appId: com.allansargeant.alleycat
+productName: Alleycat
+directories:
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+extraResources:
+  - from: resources
+    to: resources
+mac:
+  category: public.app-category.video
+  # Ad-hoc sign every target. Without this electron-builder skips signing
+  # entirely when no Developer ID is installed, and Gatekeeper on Apple
+  # Silicon then refuses the standalone arm64/x64 builds outright.
+  identity: '-'
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  notarize: false
+win:
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+nsis:
+  artifactName: ${name}-${version}-${arch}-setup.${ext}
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+linux:
+  category: AudioVideo
+  maintainer: Allan Sargeant <allan.sargeant@gmail.com>
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+npmRebuild: false
+publish: null
