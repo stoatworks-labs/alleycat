@@ -31,11 +31,14 @@ swapped once disconnected. Watch-folder ingest works and does not re-ingest its 
 
 ## NOT verified
 
-**Never used on a real show.** **The window has never been visually looked at** — it loads with no
-renderer or CSP errors, but two screenshot attempts missed (captured the wrong window; Quartz is
-unavailable to system python3) and were abandoned per **screenshot capture** (working-practice note, kept in Claude memory). Nothing has
-run on **Windows or Linux**. **No packaged build has been produced.** Arena's **412** path is coded
-but never actually fired. **Avenue untested.**
+**Never used on a real show.** Nothing has run on **Windows or Linux**. **No packaged build has
+been installed by anyone.** Arena's **412** path is coded but never actually fired. **Avenue
+untested.** The macOS local-network permission is declared and asserted in CI but has never been
+*observed working*, because every functional test so far ran from a terminal, which inherits the
+terminal's permission.
+
+The window is now checked by dumping its rendered DOM (see below), which is real evidence that it
+renders — but nobody has looked at whether it looks *right*.
 
 ## Key design points
 
@@ -45,3 +48,45 @@ clip ids are reassigned on composition load. The engine **refuses** to convert w
 name would clobber an existing unrelated file — see [resolume alley cli](https://github.com/stoatworks-labs/fleet-notes/blob/main/notes/reference_resolume_alley_cli.md).
 
 Getting it to run needed the [npm postinstall blocked](https://github.com/stoatworks-labs/fleet-notes/blob/main/notes/reference_npm_postinstall_blocked.md) workaround.
+
+## Released — 2026-08-24
+
+**v0.1.0-preview.1**, then **v0.1.0-preview.2** hours later to fix a fatal bug (below).
+Pre-releases, titled `Alleycat vX (preview)`, 13 assets per release built by GitHub Actions across
+macOS/Windows/Linux.
+
+Both had to be signed **by hand afterwards** with `posthoc-sign.sh` — the auto-signer follows
+GitHub's "latest", which excludes pre-releases, so nothing signs a preview on its own. See
+[prerelease signing blindspot](https://github.com/stoatworks-labs/fleet-notes/blob/main/notes/reference_prerelease_signing_blindspot.md).
+8 notarisations per release, all 6 macOS assets re-uploaded in place.
+
+Deliberately **not** done, because a preview of a brand-new project has nowhere to drift from:
+no `gen-downloads.py` (it keys off "latest" and correctly ignores pre-releases), no website
+project page, no user guide, no video, no About window. Every other home in the release workflow
+is still *empty* for this repo — the first **stable** release is where they have to be created
+rather than updated.
+
+## ☠️ preview.1 shipped a completely blank window
+
+`"type": "module"` in package.json — which **no other Electron app in the fleet sets**, all seven
+were checked and are `commonjs` + `preload/index.js` — makes electron-vite emit the preload as
+`out/preload/index.mjs` while `src/main/index.ts` asks for `index.js`. The preload never loads,
+`window.alleycat` is undefined, the renderer throws on its first call, and React unmounts the tree.
+
+**Everything was green while it was completely broken:** typecheck, lint, 46 tests, three-platform
+CI and the app's own log all passed, because the mismatch exists only between two *build outputs*
+and **renderer errors never reach the main process's stdout**. I claimed earlier in that session
+that "the renderer loaded clean, no CSP violations" — that was drawn from main-process stdout alone
+and was worthless as evidence. Allan found it by opening the window.
+
+Three guards now, all worth copying to any Electron repo:
+
+1. `scripts/check-bundle.mjs` reads the preload path out of the **built** main bundle and asserts
+   the file exists. Runs inside `npm run build` and in both workflows.
+2. `src/main/index.ts` forwards renderer `console-message` / `did-fail-load` /
+   `render-process-gone` into the app log. Without these a blank window is silent. Do not remove.
+3. The renderer renders a named error instead of nothing when the bridge is missing.
+
+**To verify a renderer actually rendered, without a screenshot**, dump the DOM from the main
+process: `win.webContents.executeJavaScript('document.getElementById("root")?.innerText')`.
+Text-based, scriptable, and far better evidence than "the process is still alive".
