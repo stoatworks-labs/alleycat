@@ -42,6 +42,13 @@ jobs:
       - name: Compile (electron-vite)
         run: npx electron-vite build
 
+      - name: Check the preload the built main actually references exists
+        # v0.1.0-preview.1 shipped a blank window: main asked for
+        # ../preload/index.js while electron-vite emitted index.mjs, so the
+        # bridge never loaded. Typecheck, lint and tests all passed — the
+        # mismatch only exists between two build outputs.
+        run: node scripts/check-bundle.mjs
+
       - name: Package (electron-builder)
         run: npx electron-builder ${{ matrix.platform }} --publish never
         env:

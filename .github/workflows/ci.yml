@@ -33,6 +33,9 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Build and check the bundle wiring
+        run: npm run build
+
       - name: Icons match their generators
         # The tray icon is committed as base64 inside src/main/trayIcon.ts and the
         # app icon as build/icon.png; both are generated, and a hand-edit would

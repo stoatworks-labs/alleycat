@@ -38,6 +38,20 @@ function createWindow(): void {
     }
   })
 
+  // Renderer console and load failures do not appear on the main process's
+  // stdout, so without these a blank window is completely silent.
+  win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    const tag = `renderer: ${message}`
+    if (level >= 2) log.error(`${tag} (${sourceId}:${line})`)
+    else log.info(tag)
+  })
+  win.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    log.error(`renderer failed to load ${url}: ${desc} (${code})`)
+  })
+  win.webContents.on('render-process-gone', (_e, details) => {
+    log.error(`renderer process gone: ${details.reason}`)
+  })
+
   win.on('ready-to-show', () => win?.show())
   win.on('closed', () => {
     win = null

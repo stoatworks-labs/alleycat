@@ -102,6 +102,13 @@ The hardware-in-the-loop tests drive Alley for real and are opt-in:
 ALLEYCAT_HW=1 npm test
 ```
 
+## Known issues
+
+**v0.1.0-preview.1 renders a blank window and should not be used.** The preload script failed to
+load, so the renderer had no bridge to the main process and died on its first call. Fixed in
+`v0.1.0-preview.2`; the build now fails if the preload the main bundle references does not exist,
+and the window shows a named error instead of nothing if the bridge is ever missing again.
+
 ## Verified vs assumed
 
 **Verified against real software** (macOS, Alley 7.27.1, Arena 7.27.1):
@@ -123,8 +130,9 @@ ALLEYCAT_HW=1 npm test
 
 - **Never used on a real show.** Every test above was a synthetic composition with generated test
   patterns.
-- **The window has never been visually inspected.** It loads without renderer errors or CSP
-  violations, and the tray menu is built from the same status object, but no one has looked at it.
+- **The window has only been checked by dumping its rendered DOM**, not by looking at it. That
+  confirms it renders — tabs, controls, and the preset list read back from a real Alley install —
+  but says nothing about whether it _looks_ right.
 - **Windows and Linux.** The Alley path default and `predictOutputPath` are written for them and
   unit-tested, but Alley's CLI has only ever been run on macOS here.
 - **The installers have never been installed.** They are built and published by CI, and the macOS

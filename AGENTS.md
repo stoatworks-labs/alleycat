@@ -46,6 +46,15 @@ plus a config editor; it holds no logic worth testing.
   by hand and write `path.txt` with `printf` (no trailing newline).
 - **The renderer's CSP is strict** (`default-src 'self'`). Any CDN font or script will silently not
   load.
+- ☠️ **Do not add `"type": "module"` to package.json.** electron-vite then emits the preload as
+  `out/preload/index.mjs` while `src/main/index.ts` still asks for `index.js`. The preload fails to
+  load, `window.alleycat` is undefined, and the window renders **completely blank** — which is how
+  v0.1.0-preview.1 shipped. Typecheck, lint and the unit tests all pass, because the mismatch
+  exists only between two build outputs. `scripts/check-bundle.mjs` runs as part of `npm run build`
+  and in both workflows to catch it.
+- **Renderer errors are invisible from the main process's stdout.** `src/main/index.ts` forwards
+  `console-message`, `did-fail-load` and `render-process-gone` into the app log; without those a
+  blank window is completely silent. Do not remove them.
 
 ## Sibling projects
 

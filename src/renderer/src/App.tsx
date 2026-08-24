@@ -24,7 +24,34 @@ function timeOf(ms: number): string {
   return new Date(ms).toLocaleTimeString()
 }
 
+/**
+ * Shown when the preload bridge is missing.
+ *
+ * v0.1.0-preview.1 rendered a completely blank window because the preload
+ * script failed to load and the first `window.alleycat` call threw. A blank
+ * window tells nobody anything; this at least names the failure.
+ */
+function BridgeMissing(): React.JSX.Element {
+  return (
+    <main>
+      <div className="card">
+        <h2>Alleycat could not start</h2>
+        <p className="hint">
+          The preload bridge did not load, so the window cannot talk to the rest of the app. This is
+          a packaging fault rather than something you can fix in settings.
+        </p>
+        <p className="hint" style={{ marginBottom: 0 }}>
+          Please report it at <code>github.com/stoatworks-labs/alleycat/issues</code>, including
+          your OS and how you installed Alleycat.
+        </p>
+      </div>
+    </main>
+  )
+}
+
 export default function App(): React.JSX.Element {
+  // Read once, before any hook can call through it.
+  const bridge = typeof window !== 'undefined' ? window.alleycat : undefined
   const [tab, setTab] = useState<Tab>('folders')
   const [config, setConfig] = useState<Config | null>(null)
   const [status, setStatus] = useState<Status | null>(null)
@@ -32,21 +59,23 @@ export default function App(): React.JSX.Element {
   const [arenaTest, setArenaTest] = useState<string>('')
 
   useEffect(() => {
-    void window.alleycat.getConfig().then(setConfig)
-    void window.alleycat.getStatus().then((s) => s && setStatus(s))
-    void window.alleycat.getLog().then(setLines)
-    const offStatus = window.alleycat.onStatus(setStatus)
-    const offLog = window.alleycat.onLog((l) => setLines((prev) => [...prev.slice(-499), l]))
+    if (!bridge) return
+    void bridge.getConfig().then(setConfig)
+    void bridge.getStatus().then((s) => s && setStatus(s))
+    void bridge.getLog().then(setLines)
+    const offStatus = bridge.onStatus(setStatus)
+    const offLog = bridge.onLog((l) => setLines((prev) => [...prev.slice(-499), l]))
     return () => {
       offStatus()
       offLog()
     }
-  }, [])
+  }, [bridge])
 
   const patch = useCallback(async (p: Partial<Config>): Promise<void> => {
     setConfig(await window.alleycat.setConfig(p))
   }, [])
 
+  if (!bridge) return <BridgeMissing />
   if (!config) return <div className="empty">Loading…</div>
 
   const jobs = status?.jobs ?? []
