@@ -59,3 +59,10 @@ See the [README's section](README.md#verified-vs-assumed) — it is the authorit
 written from what was actually run, not from what the code appears to do. The short version: the
 conversion and replacement paths are genuinely exercised against real Alley and real Arena; the
 UI has never been looked at, nothing has run on Windows, and it has never been near a real show.
+
+## Notes
+
+`docs/NOTES.md` carries this repo's working notes — current status, decisions
+already made, and the traps that have actually bitten. Read it before changing
+anything non-obvious. Cross-cutting fleet knowledge lives in
+[fleet-notes](https://github.com/stoatworks-labs/fleet-notes).
