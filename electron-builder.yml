@@ -14,6 +14,31 @@ extraResources:
     to: resources
 mac:
   category: public.app-category.video
+  # Every artefact name must contain ${arch}. electron-builder's defaults omit it
+  # for the primary architecture, so x64 and arm64 overwrite each other and half
+  # the release silently goes missing. The dmg/nsis/appImage blocks below set
+  # their own; this covers the .zip target, which has none.
+  artifactName: ${name}-${version}-macos-${arch}.${ext}
+  # Apple requires both version strings to be period-separated integers, so the
+  # "-preview.N" suffix cannot go in either — notarisation is entitled to reject
+  # it. The preview marker lives in the tag, the release title and the artefact
+  # filenames, which all still carry the full version from package.json.
+  bundleShortVersion: 0.1.0
+  bundleVersion: 0.1.0
+  extendInfo:
+    # Without this a GUI-launched app is denied LAN traffic SILENTLY on macOS 15+
+    # — no prompt, no error, the socket simply never arrives. It does not show up
+    # in testing because a process started from a terminal inherits the
+    # terminal's permission, so `npm start` and running the bundled binary by
+    # hand both work and only double-clicking fails. Alleycat talks to Arena's
+    # web server, which is the whole point of it, so this is load-bearing.
+    NSLocalNetworkUsageDescription: >-
+      Alleycat connects to Resolume Arena or Avenue's web server to find clips
+      that need converting and to swap in the transcoded files.
+    # A menu-bar app. Without this the dock icon appears at launch and is only
+    # removed once app.dock.hide() runs, which flashes on every start and puts
+    # Alleycat in Cmd-Tab where it does not belong.
+    LSUIElement: true
   # Ad-hoc sign every target. Without this electron-builder skips signing
   # entirely when no Developer ID is installed, and Gatekeeper on Apple
   # Silicon then refuses the standalone arm64/x64 builds outright.
@@ -26,17 +51,23 @@ mac:
     - target: zip
       arch: [x64, arm64]
   notarize: false
+dmg:
+  artifactName: ${name}-${version}-macos-${arch}.${ext}
 win:
+  artifactName: ${name}-${version}-windows-${arch}.${ext}
   target:
     - target: nsis
       arch: [x64, arm64]
     - target: zip
       arch: [x64, arm64]
 nsis:
-  artifactName: ${name}-${version}-${arch}-setup.${ext}
+  artifactName: ${name}-${version}-windows-${arch}-setup.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
+appImage:
+  artifactName: ${name}-${version}-linux-${arch}.${ext}
 linux:
+  artifactName: ${name}-${version}-linux-${arch}.${ext}
   category: AudioVideo
   maintainer: Allan Sargeant <allan.sargeant@gmail.com>
   target:

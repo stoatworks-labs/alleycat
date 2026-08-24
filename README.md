@@ -2,8 +2,8 @@
 > The transcode path and the Arena replacement path have both been run end to end against real
 > software — Resolume Alley 7.27.1 and Arena 7.27.1 on macOS — including converting a live
 > composition's h264 clips to DXV and swapping them in place while Arena was running. It has
-> **never been used on a real show**, has never run on Windows or Linux, and the packaged builds
-> have never been installed. See [Verified vs assumed](#verified-vs-assumed).
+> **never been used on a real show**, has never run on Windows or Linux, and no packaged build has
+> ever been installed. See [Verified vs assumed](#verified-vs-assumed).
 
 # Alleycat
 
@@ -127,7 +127,13 @@ ALLEYCAT_HW=1 npm test
   violations, and the tray menu is built from the same status object, but no one has looked at it.
 - **Windows and Linux.** The Alley path default and `predictOutputPath` are written for them and
   unit-tested, but Alley's CLI has only ever been run on macOS here.
-- **Packaged builds.** `electron-builder` is configured but no installer has been produced or run.
+- **The installers have never been installed.** They are built and published by CI, and the macOS
+  ones are checked in the build for `NSLocalNetworkUsageDescription` and `LSUIElement`, but nobody
+  has run one on a clean machine.
+- **The macOS local-network permission has never been observed working.** The key is present in
+  the built bundle, verified with `PlistBuddy`. Every functional test so far ran from a terminal,
+  which inherits the terminal's permission — so the permission path itself is untested by
+  construction. Double-clicking a packaged build is what would prove it.
 - **Arena's 412 "clip cannot be changed"** path. The code handles it, but Arena never actually
   returned one during testing — deferral was exercised through the `connected` check instead.
 - **Avenue.** Only Arena was tested. Layer _groups_ are Arena-only in the API, but Alleycat does

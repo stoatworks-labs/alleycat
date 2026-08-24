@@ -1,0 +1,119 @@
+name: release
+
+# Build Electron installers for Windows, macOS and Linux (x64 + arm64).
+# No native modules, so each OS runner packages both arches from its config.
+# Trigger manually (Actions > release > Run workflow) or by pushing a v* tag.
+#
+# A tag containing a hyphen (v0.1.0-preview.1) publishes as a PRE-RELEASE.
+# Note that GitHub's "latest" excludes pre-releases, which means the macOS
+# auto-signer will not pick this up — posthoc-sign.sh has to be run by hand
+# against the tag. See reference_prerelease_signing_blindspot.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux, os: ubuntu-latest, platform: '--linux' }
+          - { name: windows, os: windows-latest, platform: '--win' }
+          - { name: macos, os: macos-14, platform: '--mac' }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile (electron-vite)
+        run: npx electron-vite build
+
+      - name: Package (electron-builder)
+        run: npx electron-builder ${{ matrix.platform }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build macOS .pkg installers
+        if: runner.os == 'macOS'
+        shell: bash
+        # electron-builder's own pkg target is not concurrency-safe: every
+        # architecture writes the same scratch distribution.xml and <appId>.pkg
+        # into the output dir, so building x64 and arm64 together makes one run
+        # delete what the other is reading. It is left out of
+        # electron-builder.yml and the .pkg built here instead, one arch at a
+        # time, with the same helper the local release script uses.
+        run: |
+          source scripts/release-lib.sh
+          version="$(node -p "require('./package.json').version")"
+          rl_init "Alleycat" alleycat "$version" com.allansargeant.alleycat "$PWD/dist"
+          for d in dist/mac dist/mac-arm64 dist/mac-universal; do
+            [ -d "$d" ] || continue
+            app="$(cd "$d" && ls -d *.app 2>/dev/null | head -1)"
+            [ -n "$app" ] || continue
+            case "$d" in
+              */mac) arch=x64 ;;
+              */mac-arm64) arch=arm64 ;;
+              */mac-universal) arch=universal ;;
+            esac
+            rl_pkg "macos-$arch" "$d" --app "$app"
+          done
+
+      - name: Verify the macOS local-network key survived packaging
+        if: runner.os == 'macOS'
+        shell: bash
+        # Without NSLocalNetworkUsageDescription a double-clicked app is denied
+        # LAN traffic silently, which would break every Arena feature while
+        # looking fine in every terminal-launched test. Fail the build rather
+        # than ship that.
+        run: |
+          for d in dist/mac dist/mac-arm64; do
+            [ -d "$d" ] || continue
+            plist="$d/Alleycat.app/Contents/Info.plist"
+            /usr/libexec/PlistBuddy -c 'Print :NSLocalNetworkUsageDescription' "$plist"
+            /usr/libexec/PlistBuddy -c 'Print :LSUIElement' "$plist"
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: alleycat-${{ matrix.name }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.pkg
+            dist/*.zip
+            dist/*.AppImage
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          name: >-
+            ${{ contains(github.ref_name, '-')
+                && format('Alleycat {0} (preview)', github.ref_name)
+                || format('Alleycat {0}', github.ref_name) }}
