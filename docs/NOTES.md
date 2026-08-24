@@ -92,3 +92,37 @@ Three guards now, all worth copying to any Electron repo:
 **To verify a renderer actually rendered, without a screenshot**, dump the DOM from the main
 process: `win.webContents.executeJavaScript('document.getElementById("root")?.innerText')`.
 Text-based, scriptable, and far better evidence than "the process is still alive".
+
+## UI: the header sat under the macOS window controls — 2026-08-24
+
+`titleBarStyle: 'hiddenInset'` draws close/minimise/zoom **inside** the content area, so the
+"Alleycat" title was rendered underneath them. Allan spotted it in `v0.1.0-preview.2`.
+
+The fix has to be platform-scoped — Windows and Linux use a normal title bar and would just get a
+dented header — so `main.tsx` stamps `document.documentElement.dataset.platform` from the preload
+bridge **before the first render** (in an effect it would visibly jump on every launch), and the
+CSS pads the header only under `:root[data-platform='darwin']`.
+
+**I shipped two visual bugs in a row without ever looking at the window**, which is the actual
+lesson. Screenshotting this app is awkward: it is `LSUIElement`, so it has no dock icon, and full
+screen captures kept catching whatever else was on screen — one of them caught Allan's own screen
+while he was using the machine, at which point I stopped. Forcing the window frontmost with
+`app.focus({ steal: true })` behind a temporary env var worked once, and is the approach to reuse —
+but only when the machine is idle. Dumping the DOM proves it *rendered*; it says nothing about
+whether it *looks* right.
+
+## Arena's by-id write is refused on a cold start — 2026-08-24
+
+Found while seeding clips for those screenshots, and it corrects what this repo previously
+believed. `POST /clips/by-id/{id}/open` 404s for a window after Arena launches even when ids are
+stable and `GET by-id` returns 200; every by-index route works in that same window. Details and the
+full route table are in
+[arena rest api traps](https://github.com/stoatworks-labs/fleet-notes/blob/main/notes/reference_arena_rest_api_traps.md).
+
+`ArenaClient.openFileForClip` now falls back to by-index — **after** re-reading the clip at those
+indices and confirming it still holds the file being replaced. Indices address the *selected deck*,
+so an unguarded fallback could drop a file into the wrong slot of a live show. There is a test
+asserting that case performs no write at all.
+
+Shipped in **v0.1.0-preview.3**. The fallback is covered by unit tests but has **not** been
+exercised against a real cold Arena.
