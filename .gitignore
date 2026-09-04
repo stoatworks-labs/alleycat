@@ -4,3 +4,6 @@ out
 .eslintcache
 .DS_Store
 *.log
+
+# Incremental TS build state.
+*.tsbuildinfo
