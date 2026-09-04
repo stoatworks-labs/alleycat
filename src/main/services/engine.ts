@@ -133,6 +133,10 @@ export class Engine extends EventEmitter {
       this.showFindings = clips.filter((c) => !c.isDxv)
 
       for (const clip of this.showFindings) {
+        // Arena already knows the media is not there. Enqueuing it anyway meant
+        // a job per scan tick for a file that can never convert, each one
+        // holding the serial queue for the stall timeout.
+        if (!clip.exists) continue
         // Arena's description is only a hint; probeFile decides before converting.
         if (isVideoPath(clip.path)) this.enqueue(clip.path, 'show-scan')
       }
@@ -208,6 +212,20 @@ export class Engine extends EventEmitter {
     }
     if (!probe.isVideo) {
       this.update(job, { state: 'skipped', detail: 'not video', finishedAt: Date.now() })
+      return
+    }
+    // The probe could not read the file — missing, offline, on a volume that is
+    // not mounted, or Arena is on another host so the path is that machine's.
+    // Stop here. Handing an unreadable path to Alley does not fail fast: Alley
+    // never exits, so the job holds the serial queue for the whole 10-minute
+    // stall timeout while every other conversion waits behind it.
+    if (probe.error) {
+      this.update(job, {
+        state: 'failed',
+        detail: probe.error,
+        finishedAt: Date.now()
+      })
+      log.warn(`skipping ${basename(job.sourcePath)}: ${probe.error}`)
       return
     }
 

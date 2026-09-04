@@ -60,6 +60,13 @@ export interface ArenaClipRef {
   clipName: string
   /** Absolute path of the file the clip currently points at. */
   path: string
+  /**
+   * Arena's own `fileinfo.exists`. False for a clip whose media is offline or
+   * moved — and, when Arena runs on another host, for anything whose path is
+   * that machine's. Defaults to true when a build of Arena does not report it,
+   * so a missing field never silently drops every clip from the scan.
+   */
+  exists: boolean
   /** The codec line Arena reports, verbatim. */
   description: string
   /** Just the codec, e.g. "DXV 3.0 High Quality, No Alpha". */

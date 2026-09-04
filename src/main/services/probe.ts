@@ -1,4 +1,4 @@
-import { open, type FileHandle } from 'node:fs/promises'
+import { access, open, constants, type FileHandle } from 'node:fs/promises'
 import { extname } from 'node:path'
 
 /**
@@ -143,6 +143,26 @@ export async function probeFile(path: string): Promise<ProbeResult> {
   }
 
   if (!base.isVideo) return base
+
+  // Does the file exist and can it be read? Ask before deciding anything else.
+  //
+  // This used to be skipped entirely for a non-QuickTime container: a missing
+  // .mp4 was never opened, so it came back isVideo:true with no error, reached
+  // convert(), and Alley was spawned on a path with nothing at it. Alley never
+  // exits, so the job then sat there for the full 10-minute stall timeout with
+  // every other conversion queued behind it — and the next scan tick, 20 s
+  // later, made a fresh job and did it again.
+  try {
+    await access(path, constants.R_OK)
+  } catch (err) {
+    return {
+      ...base,
+      error:
+        err instanceof Error && 'code' in err && err.code === 'ENOENT'
+          ? 'file not found'
+          : `file is not readable: ${err instanceof Error ? err.message : String(err)}`
+    }
+  }
 
   // Only QuickTime containers can hold DXV, so anything else is known to need
   // converting without opening it at all.

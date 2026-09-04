@@ -118,3 +118,49 @@ describe('probeFile', () => {
     expect(r.fourcc).toBe('apco')
   })
 })
+
+/*
+ * A file that is not there must come back with an error, whatever its
+ * extension. A missing .mp4 used to return before any filesystem access at all
+ * — CONTAINER_EXTS does not hold .mp4, so probeFile returned isVideo:true with
+ * no error — and the caller then handed the path to Alley. Alley never exits,
+ * so the job held the serial queue for the full 10-minute stall timeout, and
+ * the next scan tick made another one 20 s later.
+ */
+describe('a source that cannot be read', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'alleycat-missing-'))
+  afterAll(() => rmSync(dir, { recursive: true, force: true }))
+
+  it('reports a missing .mp4 rather than passing it on as convertible', async () => {
+    const probe = await probeFile(join(dir, 'gone.mp4'))
+    expect(probe.isVideo).toBe(true)
+    expect(probe.isDxv).toBe(false)
+    expect(probe.error).toBe('file not found')
+  })
+
+  it('reports a missing .mov the same way', async () => {
+    const probe = await probeFile(join(dir, 'gone.mov'))
+    expect(probe.error).toBe('file not found')
+  })
+
+  it('still reports a missing file under any other video extension', async () => {
+    for (const ext of ['.mkv', '.avi', '.m4v']) {
+      const probe = await probeFile(join(dir, `gone${ext}`))
+      expect(probe.error, ext).toBeTruthy()
+    }
+  })
+
+  it('does not invent an error for a file that is present', async () => {
+    const path = join(dir, 'present.mp4')
+    writeFileSync(path, Buffer.alloc(64))
+    const probe = await probeFile(path)
+    expect(probe.error).toBeUndefined()
+    expect(probe.isVideo).toBe(true)
+  })
+
+  it('leaves a non-video path alone without touching the disk', async () => {
+    const probe = await probeFile(join(dir, 'notes.txt'))
+    expect(probe.isVideo).toBe(false)
+    expect(probe.error).toBeUndefined()
+  })
+})

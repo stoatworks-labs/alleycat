@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import type { ArenaClipRef } from '../../shared/types'
 import {
   ArenaClient,
   ClipLockedError,
@@ -235,5 +236,58 @@ describe('openFileForClip — by-index fallback', () => {
     const c = clientWith(fetchImpl as never)
     await expect(c.openFileForClip(ref, '/m/new.mov')).rejects.toBeInstanceOf(ClipLockedError)
     expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+})
+
+/*
+ * `fileinfo.exists` is what Arena already knows about media that is offline or
+ * moved — and about everything, when Arena is on another host and the paths are
+ * that machine's. The scan used to enqueue those clips anyway, and a job on a
+ * path with nothing at it does not fail fast: Alley never exits, so it holds the
+ * serial queue for the full 10-minute stall timeout, and the next scan tick
+ * creates another one 20 s later.
+ */
+describe('listFileClips reports whether the media is actually there', () => {
+  const compositionWith = (fileinfo: Record<string, unknown>): Record<string, unknown> => ({
+    layers: [
+      {
+        id: 1,
+        name: { value: 'Layer 1' },
+        clips: [
+          {
+            id: 100,
+            name: { value: 'Clip' },
+            connected: { value: 'Disconnected' },
+            video: { description: 'a.mp4\nH.264, 1920x1080, 25 Fps', fileinfo }
+          }
+        ]
+      }
+    ]
+  })
+
+  const listWith = async (fileinfo: Record<string, unknown>): Promise<ArenaClipRef[]> => {
+    const c = clientWith(
+      vi.fn(
+        async () => new Response(JSON.stringify(compositionWith(fileinfo)), { status: 200 })
+      ) as never
+    )
+    return c.listFileClips()
+  }
+
+  it('carries exists:false through for offline media', async () => {
+    const clips = await listWith({ path: '/m/a.mp4', exists: false })
+    expect(clips[0].exists).toBe(false)
+  })
+
+  it('carries exists:true through when the file is there', async () => {
+    const clips = await listWith({ path: '/m/a.mp4', exists: true })
+    expect(clips[0].exists).toBe(true)
+  })
+
+  it('assumes the file is there when Arena does not say', async () => {
+    // A build that omits the field must not make every clip look offline and
+    // silently empty the scan.
+    const clips = await listWith({ path: '/m/a.mp4' })
+    expect(clips[0].exists).toBe(true)
   })
 })

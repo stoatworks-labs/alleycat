@@ -212,6 +212,7 @@ export class ArenaClient {
           layerName,
           clipName: clip.name?.value ?? `Clip ${clip.id}`,
           path,
+          exists: clip.video?.fileinfo?.exists !== false,
           description,
           codec: codec.text,
           isDxv: codec.isDxv,
