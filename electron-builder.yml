@@ -47,9 +47,9 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   target:
     - target: dmg
-      arch: [x64, arm64]
+      arch: [arm64, universal]
     - target: zip
-      arch: [x64, arm64]
+      arch: [arm64, universal]
   notarize: false
 dmg:
   artifactName: ${name}-${version}-macos-${arch}.${ext}
