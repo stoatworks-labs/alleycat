@@ -1,4 +1,5 @@
-> **AI-assisted project.** This codebase was created with [Claude Code](https://claude.com/claude-code).
+> **AI-assisted project.** This codebase was created with [Claude](https://claude.com/claude-code)
+> (Anthropic), directed and reviewed by a human author.
 > The transcode path and the Arena replacement path have both been run end to end against real
 > software — Resolume Alley 7.27.1 and Arena 7.27.1 on macOS — including converting a live
 > composition's h264 clips to DXV and swapping them in place while Arena was running. It has
