@@ -160,6 +160,10 @@ the renderer had no bridge to the main process and died on its first call. Fixed
 - **Avenue.** Only Arena was tested. Layer _groups_ are Arena-only in the API, but Alleycat does
   not use them.
 
+<!-- attributions:start -->
+This project is built on other people's work — see [ATTRIBUTIONS.md](ATTRIBUTIONS.md).
+<!-- attributions:end -->
+
 ## Licence
 
 MIT — see [LICENSE](LICENSE).
