@@ -3,8 +3,8 @@
 > I've run the transcode path and the Arena replacement path end to end against the actual
 > software, Resolume Alley 7.27.1 and Arena 7.27.1 on macOS, including converting a live
 > composition's h264 clips to DXV and swapping them in place while Arena was running. It's
-> **never been used on a real show**, has never run on Windows or Linux, and no packaged build has
-> ever been installed. See [Verified vs assumed](#verified-vs-assumed).
+> **never been used on a real show**, has never run on Windows or Linux, and the only packaged
+> build that has been run is the macOS arm64 one. See [Verified vs assumed](#verified-vs-assumed).
 
 # Alleycat
 
