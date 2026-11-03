@@ -10,6 +10,8 @@
 
 A tray tool that keeps a Resolume show on DXV without anyone having to think about it.
 
+The [project page](https://stoatworks-labs.com/software/alleycat/) has the downloads.
+
 Point it at a folder and it converts anything dropped there. Point it at a running Arena or
 Avenue and it'll find the clips that are still h264 (there are always a few), convert them,
 and swap the converted file into the composition without any fuss, skipping any clip that's
